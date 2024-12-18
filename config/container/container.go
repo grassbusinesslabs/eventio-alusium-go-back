@@ -42,10 +42,11 @@ func New(conf config.Configuration) Container {
 	sessionRepository := database.NewSessRepository(sess)
 	userRepository := database.NewUserRepository(sess)
 	eventRepository := database.NewEventRepository(sess)
+	subscriptionRepository := database.NewSubscriptionRepository(sess)
 
 	userService := app.NewUserService(userRepository)
 	authService := app.NewAuthService(sessionRepository, userRepository, tknAuth, conf.JwtTTL)
-	eventService := app.NewEventService(eventRepository)
+	eventService := app.NewEventService(eventRepository, subscriptionRepository)
 
 	authController := controllers.NewAuthController(authService, userService)
 	userController := controllers.NewUserController(userService, authService)

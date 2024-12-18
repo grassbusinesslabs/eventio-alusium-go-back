@@ -8,6 +8,8 @@ import (
 	"github.com/BohdanBoriak/boilerplate-go-back/internal/infra/http/resources"
 	"log"
 	"net/http"
+	"strconv"
+	"time"
 )
 
 type EventController struct {
@@ -101,8 +103,86 @@ func (c EventController) FindAll() http.HandlerFunc {
 			return
 		}
 		var eventsDto resources.EventsDto
-		eventsDto = eventsDto.DomainToDto(events)
-		Success(w, eventsDto)
+		Success(w, eventsDto.DomainToDto(events))
 		Ok(w)
+	}
+}
+func (c EventController) Subscribe() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ev, ok := r.Context().Value(EventKey).(domain.Event)
+		if !ok {
+			InternalServerError(w, fmt.Errorf("failed to cast event"))
+			return
+		}
+		user := r.Context().Value(UserKey).(domain.User)
+		if err := c.eventService.SubscribeToEvent(ev.Id, user.Id); err != nil {
+			InternalServerError(w, err)
+			return
+		}
+
+		Success(w, "Subscribed successfully")
+	}
+}
+func (c EventController) GetUserSubscriptions() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user := r.Context().Value(UserKey).(domain.User)
+		subscriptions, err := c.eventService.GetUserSubscriptions(user.Id)
+		if err != nil {
+			InternalServerError(w, err)
+			return
+		}
+		var eventsDto resources.EventsDto
+		Success(w, eventsDto.DomainToDto(subscriptions))
+
+	}
+}
+
+func (c EventController) FindEventsByDate() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		dateParam := r.URL.Query().Get("date")
+		if dateParam == "" {
+			BadRequest(w, fmt.Errorf("missing date parameter"))
+			return
+		}
+
+		timestamp, err := strconv.ParseInt(dateParam, 10, 64)
+		if err != nil {
+			BadRequest(w, fmt.Errorf("invalid date format, expected Unix timestamp"))
+			return
+		}
+
+		date := time.Unix(timestamp, 0)
+
+		events, err := c.eventService.FindEventsByDate(date)
+		if err != nil {
+			InternalServerError(w, err)
+			return
+		}
+		var eventsDto resources.EventsDto
+		Success(w, eventsDto.DomainToDto(events))
+
+	}
+}
+
+func (c EventController) FindEventsGroupByDate() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		groupedEvents, err := c.eventService.FindEventsGroupByDate()
+		if err != nil {
+			InternalServerError(w, err)
+			return
+		}
+
+		filteredGroupedEvents := make(map[string][]resources.EventDto)
+
+		for date, events := range groupedEvents {
+			var filteredEvents []resources.EventDto
+			for _, event := range events {
+				filteredEvents = append(filteredEvents, resources.EventDto{}.DomainToDto(event))
+			}
+			filteredGroupedEvents[date] = filteredEvents
+		}
+
+		// Отправляем результат
+		Success(w, filteredGroupedEvents)
 	}
 }

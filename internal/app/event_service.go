@@ -4,6 +4,7 @@ import (
 	"github.com/BohdanBoriak/boilerplate-go-back/internal/domain"
 	"github.com/BohdanBoriak/boilerplate-go-back/internal/infra/database"
 	"log"
+	"time"
 )
 
 type EventService interface {
@@ -12,15 +13,21 @@ type EventService interface {
 	Find(id uint64) (interface{}, error)
 	FindAll() ([]domain.Event, error)
 	Delete(id uint64) error
+	SubscribeToEvent(eventId, userId uint64) error
+	GetUserSubscriptions(userId uint64) ([]domain.Event, error)
+	FindEventsByDate(date time.Time) ([]domain.Event, error)
+	FindEventsGroupByDate() (map[string][]domain.Event, error)
 }
 
 type eventService struct {
-	eventRepo database.EventRepository
+	subscriptionRepo database.SubscriptionRepository
+	eventRepo        database.EventRepository
 }
 
-func NewEventService(ev database.EventRepository) EventService {
+func NewEventService(ev database.EventRepository, sb database.SubscriptionRepository) EventService {
 	return eventService{
-		eventRepo: ev,
+		subscriptionRepo: sb,
+		eventRepo:        ev,
 	}
 }
 
@@ -66,4 +73,28 @@ func (s eventService) Delete(id uint64) error {
 	}
 
 	return nil
+}
+func (s eventService) SubscribeToEvent(eventId, userId uint64) error {
+	// Проверяем, существует ли событие
+	_, err := s.eventRepo.Find(eventId)
+	if err != nil {
+		return err
+	}
+
+	// Добавляем подписку
+	return s.subscriptionRepo.Subscribe(eventId, userId)
+}
+
+func (s eventService) GetUserSubscriptions(userId uint64) ([]domain.Event, error) {
+	return s.subscriptionRepo.FindUserSubscriptions(userId)
+}
+func (s eventService) FindEventsByDate(date time.Time) ([]domain.Event, error) {
+	_, err := s.eventRepo.FindEventsByDate(date)
+	if err != nil {
+		return nil, err
+	}
+	return s.eventRepo.FindEventsByDate(date)
+}
+func (s eventService) FindEventsGroupByDate() (map[string][]domain.Event, error) {
+	return s.eventRepo.FindEventsGroupByDate()
 }

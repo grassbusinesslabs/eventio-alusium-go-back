@@ -31,6 +31,8 @@ type EventRepository interface {
 	Find(id uint64) (interface{}, error)
 	Delete(id uint64) error
 	FindAll() ([]domain.Event, error)
+	FindEventsByDate(date time.Time) ([]domain.Event, error)
+	FindEventsGroupByDate() (map[string][]domain.Event, error)
 }
 
 type eventRepository struct {
@@ -86,7 +88,41 @@ func (r eventRepository) FindAll() ([]domain.Event, error) {
 	}
 	return r.mapModelToDomainCollection(events), nil
 }
+func (r eventRepository) FindEventsByDate(date time.Time) ([]domain.Event, error) {
+	var events []event
+	startOfDay := date.Truncate(24 * time.Hour)
+	endOfDay := startOfDay.Add(24*time.Hour - time.Nanosecond)
 
+	err := r.coll.Find(db.Cond{
+		"date >=":      startOfDay,
+		"date <=":      endOfDay,
+		"deleted_date": nil,
+	}).All(&events)
+
+	if err != nil {
+		log.Printf("EventRepository -> FindEventsByDate -> r.coll.Find(db.Cond{\n\t\t\"date >=\":startOfDay,\n\t\t\"date <=\":endOfDay,\n\t\t\"deleted_date\": nil,\n\t}) %s", err)
+		return nil, err
+	}
+
+	return r.mapModelToDomainCollection(events), nil
+}
+func (r eventRepository) FindEventsGroupByDate() (map[string][]domain.Event, error) {
+	groupedEvents := make(map[string][]domain.Event)
+
+	var events []event
+	err := r.coll.Find(db.Cond{"deleted_date": nil}).All(&events)
+	if err != nil {
+		log.Printf("EventRepository -> FindEventsGroupByDate -> r.coll.Find(db.Cond{\"deleted_date\": nil}).All(&events) %s", err)
+		return nil, err
+	}
+
+	for _, e := range events {
+		dateKey := e.Date.Format("2006-01-02")
+		groupedEvents[dateKey] = append(groupedEvents[dateKey], r.mapModelToDomain(e))
+	}
+
+	return groupedEvents, nil
+}
 func (r eventRepository) Delete(id uint64) error {
 	return r.coll.Find(db.Cond{"id": id, "deleted_date": nil}).Update(map[string]interface{}{"deleted_date": time.Now()})
 }

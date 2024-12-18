@@ -121,6 +121,19 @@ func EventRouter(r chi.Router, ev controllers.EventController, pathMw func(http.
 			"/findAll",
 			ev.FindAll(),
 		)
+		apiRouter.With(pathMw).Post(
+			"/subscribe/{eventId}", ev.Subscribe(),
+		)
+		apiRouter.Get(
+			"/subscriptions", ev.GetUserSubscriptions(),
+		)
+		apiRouter.Get(
+			"/findByDate", ev.FindEventsByDate(),
+		)
+		apiRouter.Get(
+			"/groupedByDate",
+			ev.FindEventsGroupByDate(),
+		)
 	})
 }
 

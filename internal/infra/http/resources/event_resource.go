@@ -31,6 +31,7 @@ func (d EventsDto) DomainToDto(ev []domain.Event) EventsDto {
 		Events: events,
 	}
 }
+
 func (d EventDto) DomainToDto(event domain.Event) EventDto {
 	return EventDto{
 		Id:          event.Id,
