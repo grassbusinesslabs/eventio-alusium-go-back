@@ -15,6 +15,7 @@ type user struct {
 	SecondName  string      `db:"second_name"`
 	Password    string      `db:"password"`
 	Email       string      `db:"email"`
+	Image       string      `db:"image"`
 	Role        domain.Role `db:"role"`
 	CreatedDate time.Time   `db:"created_date,omitempty"`
 	UpdatedDate time.Time   `db:"updated_date,omitempty"`
@@ -103,6 +104,7 @@ func (r userRepository) mapDomainToModel(d domain.User) user {
 		Password:    d.Password,
 		FirstName:   d.FirstName,
 		SecondName:  d.SecondName,
+		Image:       d.Image,
 		Role:        d.Role,
 		CreatedDate: d.CreatedDate,
 		UpdatedDate: d.UpdatedDate,
@@ -118,6 +120,7 @@ func (r userRepository) mapModelToDomain(m user) domain.User {
 		FirstName:   m.FirstName,
 		SecondName:  m.SecondName,
 		Role:        m.Role,
+		Image:       m.Image,
 		CreatedDate: m.CreatedDate,
 		UpdatedDate: m.UpdatedDate,
 		DeletedDate: m.DeletedDate,

@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"github.com/BohdanBoriak/boilerplate-go-back/internal/app"
 	"github.com/BohdanBoriak/boilerplate-go-back/internal/domain"
+	"github.com/BohdanBoriak/boilerplate-go-back/internal/infra/database"
+	"github.com/BohdanBoriak/boilerplate-go-back/internal/infra/filesystem"
 	"github.com/BohdanBoriak/boilerplate-go-back/internal/infra/http/requests"
 	"github.com/BohdanBoriak/boilerplate-go-back/internal/infra/http/resources"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -14,11 +17,13 @@ import (
 
 type EventController struct {
 	eventService app.EventService
+	imageService filesystem.ImageStorageService
 }
 
-func NewEventController(eventService app.EventService) EventController {
+func NewEventController(eventService app.EventService, imageService filesystem.ImageStorageService) EventController {
 	return EventController{
 		eventService: eventService,
+		imageService: imageService,
 	}
 }
 
@@ -184,5 +189,171 @@ func (c EventController) FindEventsGroupByDate() http.HandlerFunc {
 
 		// Отправляем результат
 		Success(w, filteredGroupedEvents)
+	}
+}
+func (c EventController) FindList() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		search := r.URL.Query().Get("search")
+		location := r.URL.Query().Get("location")
+		dateParam := r.URL.Query().Get("date")
+		city := r.URL.Query().Get("city")
+		var date *time.Time
+		if dateParam != "" {
+			timestamp, err := strconv.ParseInt(dateParam, 10, 64)
+			if err != nil {
+				http.Error(w, "Invalid date format. Use YYYY-MM-DD", http.StatusBadRequest)
+				return
+			}
+			parsedDate := time.Unix(timestamp, 0)
+			date = &parsedDate
+		}
+
+		filters := database.UrlFilters{
+			Search:   search,
+			Location: location,
+			Date:     date,
+			City:     city,
+		}
+
+		events, err := c.eventService.FindList(filters)
+		if err != nil {
+			http.Error(w, "Error fetching events", http.StatusInternalServerError)
+			return
+		}
+
+		var eventsDto resources.EventsDto
+		Success(w, eventsDto.DomainToDto(events))
+
+	}
+}
+
+func (c EventController) SaveImage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ev, ok := r.Context().Value(EventKey).(domain.Event)
+		if !ok {
+			InternalServerError(w, fmt.Errorf("failed to cast event"))
+			return
+		}
+		file, header, err := r.FormFile("image")
+		if err != nil {
+			http.Error(w, "Failed to get the file", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		filename := fmt.Sprintf("event_%s_%s", strconv.FormatUint(ev.Id, 10), header.Filename)
+
+		content, err := io.ReadAll(file)
+		if err != nil {
+			http.Error(w, "Failed to read the file", http.StatusInternalServerError)
+			return
+		}
+
+		err = c.imageService.SaveImage(filename, content)
+		if err != nil {
+			http.Error(w, "Failed to save the image", http.StatusInternalServerError)
+			return
+		}
+
+		ev.Image = filename
+		updatedEvent, err := c.eventService.Update(ev)
+		if err != nil {
+			log.Printf("EventController -> UploadImage -> Update: %s", err)
+			InternalServerError(w, err)
+			return
+		}
+		Success(w, map[string]string{"message": "File saved successfully!", "path": updatedEvent.Image})
+	}
+}
+func (c EventController) GetImage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		imgPath := r.URL.Query().Get("path")
+		content, err := c.imageService.GetImageContent(imgPath)
+		if err != nil {
+			http.Error(w, "Failed to get the image", http.StatusInternalServerError)
+			return
+		}
+
+		Success(w, content)
+	}
+}
+func (c EventController) DeleteImage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		ev, ok := r.Context().Value(EventKey).(domain.Event)
+
+		if !ok {
+			InternalServerError(w, fmt.Errorf("failed to cast event"))
+			return
+		}
+
+		if ev.Image != "" {
+			err := c.imageService.DeleteImage(ev.Image)
+			if err != nil {
+				log.Printf("Failed to delete old image: %s", err)
+				http.Error(w, "Failed to delete old image", http.StatusInternalServerError)
+				return
+			}
+			ev.Image = ""
+			_, err = c.eventService.Update(ev)
+			if err != nil {
+				log.Printf("Failed to update event after image deletion: %s", err)
+				InternalServerError(w, err)
+				return
+			}
+		}
+		Ok(w)
+	}
+}
+
+func (c EventController) UpdateImage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		ev, ok := r.Context().Value(EventKey).(domain.Event)
+		if !ok {
+			InternalServerError(w, fmt.Errorf("failed to cast event"))
+			return
+		}
+
+		file, header, err := r.FormFile("image")
+		if err != nil {
+			http.Error(w, "Failed to get the file", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		newFilename := fmt.Sprintf("event_%s_%s", strconv.FormatUint(ev.Id, 10), header.Filename)
+
+		if ev.Image != "" {
+			err = c.imageService.DeleteImage(ev.Image)
+			if err != nil {
+				log.Printf("Failed to delete old image: %s", err)
+				http.Error(w, "Failed to delete old image", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		content, err := io.ReadAll(file)
+		if err != nil {
+			http.Error(w, "Failed to read the file", http.StatusInternalServerError)
+			return
+		}
+
+		err = c.imageService.SaveImage(newFilename, content)
+		if err != nil {
+			http.Error(w, "Failed to save the image", http.StatusInternalServerError)
+			return
+		}
+
+		ev.Image = newFilename
+		updatedEvent, err := c.eventService.Update(ev)
+		if err != nil {
+			log.Printf("EventController -> SaveImage -> Update: %s", err)
+			InternalServerError(w, err)
+			return
+		}
+
+		Success(w, map[string]string{"message": "File saved successfully!", "path": updatedEvent.Image})
 	}
 }

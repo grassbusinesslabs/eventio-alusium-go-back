@@ -3,6 +3,7 @@ package database
 import (
 	"github.com/upper/db/v4"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/BohdanBoriak/boilerplate-go-back/internal/domain"
@@ -17,6 +18,7 @@ type event struct {
 	Description string             `db:"description"`
 	Status      domain.EventStatus `db:"status"`
 	Image       string             `db:"image"`
+	City        string             `db:"city"`
 	Location    string             `db:"location"`
 	Lat         float64            `db:"lat"`
 	Lon         float64            `db:"lon"`
@@ -33,11 +35,19 @@ type EventRepository interface {
 	FindAll() ([]domain.Event, error)
 	FindEventsByDate(date time.Time) ([]domain.Event, error)
 	FindEventsGroupByDate() (map[string][]domain.Event, error)
+	FindList(filters UrlFilters) ([]domain.Event, error)
 }
 
 type eventRepository struct {
 	coll db.Collection
 	sess db.Session
+}
+
+type UrlFilters struct {
+	Search   string
+	Date     *time.Time
+	Location string
+	City     string
 }
 
 func NewEventRepository(dbSession db.Session) eventRepository {
@@ -123,6 +133,40 @@ func (r eventRepository) FindEventsGroupByDate() (map[string][]domain.Event, err
 
 	return groupedEvents, nil
 }
+func (r eventRepository) FindList(filters UrlFilters) ([]domain.Event, error) {
+	query := r.coll.Find(db.Cond{"deleted_date": nil})
+
+	if filters.City != "" {
+		city := "%" + strings.ToLower(filters.City) + "%"
+		query = query.And(db.Raw(`LOWER(city) LIKE ?`, city))
+	}
+
+	if filters.Search != "" {
+		search := "%" + strings.ToLower(filters.Search) + "%"
+		query = query.And(db.Raw(`(LOWER(title) LIKE ? OR LOWER(description) LIKE ?)`, search, search))
+	}
+
+	if filters.Date != nil {
+		startOfDay := filters.Date.Truncate(24 * time.Hour)
+		endOfDay := startOfDay.Add(24*time.Hour - time.Nanosecond)
+		query = query.And(db.Cond{"date >=": startOfDay, "date <=": endOfDay})
+	}
+
+	if filters.Location != "" {
+		location := "%" + strings.ToLower(filters.Location) + "%"
+		query = query.And(db.Raw(`LOWER(location) LIKE ?`, location))
+	}
+
+	var events []event
+	err := query.OrderBy("-date").All(&events)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.mapModelToDomainCollection(events), nil
+
+}
+
 func (r eventRepository) Delete(id uint64) error {
 	return r.coll.Find(db.Cond{"id": id, "deleted_date": nil}).Update(map[string]interface{}{"deleted_date": time.Now()})
 }
@@ -135,6 +179,7 @@ func (r eventRepository) mapDomainToModel(d domain.Event) event {
 		Description: d.Description,
 		Status:      d.Status,
 		Image:       d.Image,
+		City:        d.City,
 		Location:    d.Location,
 		Lat:         d.Lat,
 		Lon:         d.Lon,
@@ -153,6 +198,7 @@ func (r eventRepository) mapModelToDomain(m event) domain.Event {
 		Description: m.Description,
 		Status:      m.Status,
 		Image:       m.Image,
+		City:        m.City,
 		Location:    m.Location,
 		Lat:         m.Lat,
 		Lon:         m.Lon,

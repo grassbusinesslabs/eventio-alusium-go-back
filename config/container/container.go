@@ -4,6 +4,7 @@ import (
 	"github.com/BohdanBoriak/boilerplate-go-back/config"
 	"github.com/BohdanBoriak/boilerplate-go-back/internal/app"
 	"github.com/BohdanBoriak/boilerplate-go-back/internal/infra/database"
+	"github.com/BohdanBoriak/boilerplate-go-back/internal/infra/filesystem"
 	"github.com/BohdanBoriak/boilerplate-go-back/internal/infra/http/controllers"
 	"github.com/BohdanBoriak/boilerplate-go-back/internal/infra/http/middlewares"
 	"github.com/go-chi/jwtauth/v5"
@@ -47,10 +48,11 @@ func New(conf config.Configuration) Container {
 	userService := app.NewUserService(userRepository)
 	authService := app.NewAuthService(sessionRepository, userRepository, tknAuth, conf.JwtTTL)
 	eventService := app.NewEventService(eventRepository, subscriptionRepository)
+	imageService := filesystem.NewImageStorageService(conf)
 
 	authController := controllers.NewAuthController(authService, userService)
-	userController := controllers.NewUserController(userService, authService)
-	eventController := controllers.NewEventController(eventService)
+	userController := controllers.NewUserController(userService, authService, imageService)
+	eventController := controllers.NewEventController(eventService, imageService)
 
 	authMiddleware := middlewares.AuthMiddleware(tknAuth, authService, userService)
 	pathObjMiddleware := middlewares.PathObject("eventId", controllers.EventKey, eventService)

@@ -17,6 +17,7 @@ type EventService interface {
 	GetUserSubscriptions(userId uint64) ([]domain.Event, error)
 	FindEventsByDate(date time.Time) ([]domain.Event, error)
 	FindEventsGroupByDate() (map[string][]domain.Event, error)
+	FindList(filters database.UrlFilters) ([]domain.Event, error)
 }
 
 type eventService struct {
@@ -97,4 +98,12 @@ func (s eventService) FindEventsByDate(date time.Time) ([]domain.Event, error) {
 }
 func (s eventService) FindEventsGroupByDate() (map[string][]domain.Event, error) {
 	return s.eventRepo.FindEventsGroupByDate()
+}
+func (s eventService) FindList(filters database.UrlFilters) ([]domain.Event, error) {
+	events, err := s.eventRepo.FindList(filters)
+	if err != nil {
+		return nil, err
+	}
+
+	return events, nil
 }

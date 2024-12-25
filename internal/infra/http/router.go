@@ -99,6 +99,22 @@ func UserRouter(r chi.Router, uc controllers.UserController) {
 			"/",
 			uc.Delete(),
 		)
+		apiRouter.Post(
+			"/saveImage",
+			uc.SaveImage(),
+		)
+		apiRouter.Get(
+			"/getImage",
+			uc.GetImage(),
+		)
+		apiRouter.Delete(
+			"/deleteImage",
+			uc.DeleteImage(),
+		)
+		apiRouter.Post(
+			"/updateImage",
+			uc.UpdateImage(),
+		)
 	})
 }
 
@@ -133,6 +149,26 @@ func EventRouter(r chi.Router, ev controllers.EventController, pathMw func(http.
 		apiRouter.Get(
 			"/groupedByDate",
 			ev.FindEventsGroupByDate(),
+		)
+		apiRouter.Get(
+			"/findList",
+			ev.FindList(),
+		)
+		apiRouter.With(pathMw).Post(
+			"/{eventId}/uploadImage",
+			ev.SaveImage(),
+		)
+		apiRouter.Get(
+			"/image",
+			ev.GetImage(),
+		)
+		apiRouter.With(pathMw).Delete(
+			"/{eventId}/deleteImage",
+			ev.DeleteImage(),
+		)
+		apiRouter.With(pathMw).Post(
+			"/{eventId}/updateImage",
+			ev.UpdateImage(),
 		)
 	})
 }

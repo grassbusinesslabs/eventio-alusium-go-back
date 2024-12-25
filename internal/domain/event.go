@@ -11,6 +11,7 @@ type Event struct {
 	Description string
 	Status      EventStatus
 	Image       string
+	City        string
 	Location    string
 	Date        time.Time
 	Lat         float64

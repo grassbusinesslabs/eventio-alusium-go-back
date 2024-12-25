@@ -7,6 +7,7 @@ type UserDto struct {
 	FirstName  string      `json:"firstName"`
 	SecondName string      `json:"secondName"`
 	Email      string      `json:"email"`
+	Image      string      `db:"image"`
 	Role       domain.Role `json:"role,omitempty"`
 }
 
@@ -27,6 +28,7 @@ func (d UserDto) DomainToDto(user domain.User) UserDto {
 		FirstName:  user.FirstName,
 		SecondName: user.SecondName,
 		Email:      user.Email,
+		Image:      user.Image,
 		Role:       user.Role,
 	}
 }

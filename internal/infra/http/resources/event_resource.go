@@ -13,6 +13,7 @@ type EventDto struct {
 	Status      domain.EventStatus `db:"status"`
 	Date        time.Time          `db:"date"`
 	Image       string             `db:"image"`
+	City        string             `db:"city"`
 	Location    string             `db:"location"`
 	Lat         float64            `db:"lat"`
 	Lon         float64            `db:"long"`
@@ -40,6 +41,7 @@ func (d EventDto) DomainToDto(event domain.Event) EventDto {
 		Description: event.Description,
 		Status:      event.Status,
 		Image:       event.Image,
+		City:        event.City,
 		Location:    event.Location,
 		Lat:         event.Lat,
 		Lon:         event.Lon,
